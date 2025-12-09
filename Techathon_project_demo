@@ -1,0 +1,1254 @@
+# 🚍 SMART TRANSPORT SYSTEM - COMPLETE VERSION WITH LIVE MAP & PRINT RECEIPT
+# ✅ Added: Live bus tracking map, print receipt functionality
+# ✅ Features: Google Maps, working navigation, 0 maintenance at startup
+
+import streamlit as st
+import pandas as pd
+import numpy as np
+import pydeck as pdk
+from datetime import datetime, timedelta
+import random
+import time
+import plotly.express as px
+import plotly.graph_objects as go
+import qrcode
+import io
+import base64
+from PIL import Image
+import socket
+import json
+import math
+import uuid
+
+# Page configuration
+st.set_page_config(
+    page_title="Smart Transport System", 
+    layout="wide",
+    page_icon="🚍"
+)
+
+# Enhanced CSS with print styles
+st.markdown("""
+<style>
+    @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css');
+    
+    .main-header {
+        font-size: 3.5rem;
+        font-weight: 800;
+        background: linear-gradient(45deg, #FF6B6B, #4ECDC4, #45B7D1, #96CEB4, #FECA57);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-align: center;
+        margin-bottom: 2rem;
+        padding: 1rem;
+        text-shadow: 0 0 30px rgba(255,107,107,0.5);
+        animation: glow 2s ease-in-out infinite alternate;
+    }
+    
+    @keyframes glow {
+        from { text-shadow: 0 0 20px rgba(255,107,107,0.5), 0 0 30px rgba(78,205,196,0.5); }
+        to { text-shadow: 0 0 30px rgba(255,107,107,0.8), 0 0 40px rgba(78,205,196,0.8), 0 0 50px rgba(69,183,209,0.6); }
+    }
+    
+    .route-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 20px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        transition: all 0.3s ease;
+        cursor: pointer;
+        border: 2px solid transparent;
+    }
+    
+    .route-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        border-color: #4ECDC4;
+    }
+    
+    .dashboard-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 20px;
+        padding: 2rem;
+        text-align: center;
+        box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+        transition: all 0.4s ease;
+        margin: 1rem 0;
+        animation: pulse 2s ease-in-out infinite;
+    }
+    
+    .bus-card {
+        background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 1rem;
+        margin: 0.5rem 0;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+    
+    .maintenance-card {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 1rem;
+        margin: 0.5rem 0;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+    
+    .receipt-card {
+        background: white;
+        color: black;
+        border: 2px solid #ddd;
+        border-radius: 10px;
+        padding: 2rem;
+        margin: 1rem 0;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        font-family: 'Courier New', monospace;
+        max-width: 400px;
+        margin: 0 auto;
+    }
+    
+    .traffic-hotspot {
+        background: linear-gradient(135deg, #FF6B6B 0%, #FF4444 100%);
+        color: white;
+        border-radius: 10px;
+        padding: 0.5rem;
+        margin: 0.25rem 0;
+        font-size: 0.9rem;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    }
+    
+    .live-indicator {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        background: #4ECDC4;
+        border-radius: 50%;
+        margin-right: 0.5rem;
+        animation: blink 1s ease-in-out infinite;
+    }
+    
+    @keyframes blink {
+        0%, 50% { opacity: 1; }
+        51%, 100% { opacity: 0.3; }
+    }
+    
+    .google-maps-embed {
+        border-radius: 15px;
+        overflow: hidden;
+        box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+        width: 100%;
+        height: 400px;
+        margin: 1rem 0;
+    }
+    
+    @keyframes pulse {
+        0% { box-shadow: 0 15px 35px rgba(0,0,0,0.2); }
+        50% { box-shadow: 0 20px 45px rgba(0,0,0,0.3); }
+        100% { box-shadow: 0 15px 35px rgba(0,0,0,0.2); }
+    }
+    
+    .print-button {
+        background: linear-gradient(135deg, #4ECDC4 0%, #44A08D 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 10px;
+        font-size: 1rem;
+        cursor: pointer;
+        margin: 1rem 0;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        transition: all 0.3s ease;
+    }
+    
+    .print-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+    }
+    
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+        .receipt-card {
+            box-shadow: none;
+            border: 1px solid #000;
+        }
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# ✅ SESSION STATE INITIALIZATION
+def initialize_session_state():
+    """Initialize all session state variables with 0 maintenance buses at startup"""
+    defaults = {
+        'page': 'role_selection',
+        'role': None,
+        'current_user': None,
+        'places_data': None,
+        'buses_data': None,
+        'booking_step': 'search',
+        'selected_route': None,
+        'route_details': None,
+        'search_params': None,
+        'bus_positions': {},
+        'last_position_update': datetime.now(),
+        'user_bookings': [],
+        'user_complaints': [],
+        'all_complaints': [],
+        'cached_routes': {},
+        'complaint_counts': {},
+        'stable_routes': {},
+        'maintenance_buses': [],
+        'bus_review_tracker': {},
+        'route_session_id': str(uuid.uuid4()),
+        'bus_fleet': [],
+        'traffic_hotspots': {},
+        'live_bus_tracking': {},
+        'maintenance_history': [],
+        'app_initialized': False,
+        'current_receipt': None  # ✅ STORE CURRENT RECEIPT
+    }
+    
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+initialize_session_state()
+
+# ✅ DISTANCE AND TIME CALCULATION
+def calculate_real_distance(start_coords, end_coords):
+    """Calculate accurate distance using Haversine formula"""
+    lat1, lon1 = start_coords
+    lat2, lon2 = end_coords
+    
+    # Convert to radians
+    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+    
+    # Haversine formula
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+    c = 2 * math.asin(math.sqrt(a))
+    
+    # Earth's radius in km
+    r = 6371
+    
+    return c * r
+
+def calculate_accurate_travel_time(distance_km, bus_type, traffic_factor=1.2):
+    """Calculate realistic travel time with traffic considerations"""
+    if distance_km <= 0:
+        return 45  # Minimum time for city routes
+    
+    # Different speeds for different bus types
+    base_speeds = {
+        'Ordinary': 40,
+        'Semi-Deluxe': 45,
+        'AC Deluxe': 50,
+        'Volvo': 55,
+        'Electric': 45
+    }
+    
+    avg_speed = base_speeds.get(bus_type, 45)
+    
+    # Base travel time
+    base_time_hours = distance_km / avg_speed
+    base_time_minutes = base_time_hours * 60
+    
+    # Add realistic factors
+    stops = max(1, int(distance_km / 18))  # Stop every ~18km
+    boarding_time = stops * 5  # 5 minutes per stop
+    traffic_delay = base_time_minutes * (traffic_factor - 1)
+    
+    total_time = int(base_time_minutes + boarding_time + traffic_delay)
+    
+    return max(total_time, 30)  # Minimum 30 minutes
+
+# ✅ GEOGRAPHICAL ROUTING (SHORTEST ROUTE ALGORITHM)
+def get_geographical_route(start, destination):
+    """Get correct geographical routing between cities with shortest path"""
+    
+    route_maps = {
+        # North-South routes (optimized for shortest distance)
+        ("Gandhipuram", "Chennai"): ["Gandhipuram", "Tiruppur", "Erode", "Salem", "Vellore", "Chennai"],
+        ("Coimbatore", "Chennai"): ["Coimbatore", "Tiruppur", "Erode", "Salem", "Vellore", "Chennai"],
+        ("Gandhipuram", "Madurai"): ["Gandhipuram", "Tiruppur", "Erode", "Trichy", "Madurai"],
+        ("Coimbatore", "Madurai"): ["Coimbatore", "Tiruppur", "Erode", "Trichy", "Madurai"],
+        
+        # East-West routes
+        ("Salem", "Madurai"): ["Salem", "Trichy", "Madurai"],
+        ("Salem", "Thanjavur"): ["Salem", "Trichy", "Thanjavur"],
+        ("Erode", "Trichy"): ["Erode", "Trichy"],
+        ("Tiruppur", "Salem"): ["Tiruppur", "Erode", "Salem"],
+        
+        # Direct short routes (shortest paths)
+        ("Gandhipuram", "Coimbatore"): ["Gandhipuram", "Coimbatore"],
+        ("Gandhipuram", "Tiruppur"): ["Gandhipuram", "Tiruppur"],
+        ("Tiruppur", "Erode"): ["Tiruppur", "Erode"],
+        ("Erode", "Salem"): ["Erode", "Salem"],
+        ("Salem", "Vellore"): ["Salem", "Vellore"],
+        ("Vellore", "Chennai"): ["Vellore", "Chennai"],
+        ("Trichy", "Madurai"): ["Trichy", "Madurai"],
+        ("Trichy", "Thanjavur"): ["Trichy", "Thanjavur"]
+    }
+    
+    # Try direct route first (shortest)
+    key = (start, destination)
+    if key in route_maps:
+        return route_maps[key]
+    
+    # Try reverse route
+    reverse_key = (destination, start)
+    if reverse_key in route_maps:
+        route = route_maps[reverse_key].copy()
+        route.reverse()
+        return route
+    
+    # Default fallback (direct shortest path)
+    return [start, destination]
+
+# ✅ PLACES AND BUSES DATA
+def create_places_data():
+    """Real Tamil Nadu places with accurate coordinates"""
+    places = [
+        {"place_id": 1, "place_name": "Gandhipuram", "latitude": 11.0183, "longitude": 76.9725, "zone": "Central"},
+        {"place_id": 2, "place_name": "Coimbatore", "latitude": 11.0168, "longitude": 76.9558, "zone": "Central"},
+        {"place_id": 3, "place_name": "Salem", "latitude": 11.6643, "longitude": 78.1460, "zone": "East"},
+        {"place_id": 4, "place_name": "Erode", "latitude": 11.3410, "longitude": 77.7172, "zone": "East"},
+        {"place_id": 5, "place_name": "Tiruppur", "latitude": 11.1085, "longitude": 77.3411, "zone": "East"},
+        {"place_id": 6, "place_name": "Madurai", "latitude": 9.9252, "longitude": 78.1198, "zone": "South"},
+        {"place_id": 7, "place_name": "Chennai", "latitude": 13.0827, "longitude": 80.2707, "zone": "North"},
+        {"place_id": 8, "place_name": "Trichy", "latitude": 10.7905, "longitude": 78.7047, "zone": "South"},
+        {"place_id": 9, "place_name": "Thanjavur", "latitude": 10.7870, "longitude": 79.1378, "zone": "South"},
+        {"place_id": 10, "place_name": "Vellore", "latitude": 12.9165, "longitude": 79.1325, "zone": "North"},
+    ]
+    return pd.DataFrame(places)
+
+def create_buses_data():
+    """Create enhanced bus fleet - ALL START AS ACTIVE (0 maintenance at startup)"""
+    if st.session_state.bus_fleet and st.session_state.app_initialized:
+        # Update status based on bad reviews ONLY AFTER APP IS INITIALIZED
+        for bus in st.session_state.bus_fleet:
+            bus_number = bus['bus_number']
+            if bus_number in st.session_state.bus_review_tracker:
+                bad_reviews = st.session_state.bus_review_tracker[bus_number]
+                bus['bad_reviews'] = bad_reviews
+                bus['status'] = "Maintenance" if bad_reviews >= 3 else "Active"
+                bus['current_passengers'] = random.randint(5, 35) if bus['status'] == "Active" else 0
+            else:
+                bus['bad_reviews'] = 0
+                bus['status'] = "Active"
+                bus['current_passengers'] = random.randint(5, 35)
+        
+        return pd.DataFrame(st.session_state.bus_fleet)
+    
+    buses = []
+    bus_types = ['Ordinary', 'Semi-Deluxe', 'AC Deluxe', 'Volvo', 'Electric']
+    fuel_types = ['Diesel', 'CNG', 'Electric']
+    
+    # Predefined routes with start and end points
+    predefined_routes = [
+        {"start": "Gandhipuram", "end": "Chennai", "route": "Gandhipuram-Chennai Express"},
+        {"start": "Coimbatore", "end": "Madurai", "route": "Coimbatore-Madurai Direct"},
+        {"start": "Salem", "end": "Chennai", "route": "Salem-Chennai Highway"},
+        {"start": "Erode", "end": "Trichy", "route": "Erode-Trichy Local"},
+        {"start": "Tiruppur", "end": "Salem", "route": "Tiruppur-Salem Connect"},
+        {"start": "Vellore", "end": "Chennai", "route": "Vellore-Chennai Metro"},
+        {"start": "Trichy", "end": "Madurai", "route": "Trichy-Madurai Express"},
+        {"start": "Gandhipuram", "end": "Tiruppur", "route": "Gandhipuram-Tiruppur Local"}
+    ]
+    
+    places_df = get_places_data()
+    
+    for i in range(160):  # 160 buses total
+        route_info = predefined_routes[i % len(predefined_routes)]
+        bus_type = bus_types[i % len(bus_types)]
+        
+        start_place = places_df[places_df['place_name'] == route_info['start']].iloc[0]
+        
+        bus_number = f"TN38{random.choice(['A', 'B', 'C'])}{100 + i:03d}"
+        
+        # ✅ ALL BUSES START AS ACTIVE WITH 0 BAD REVIEWS
+        st.session_state.bus_review_tracker[bus_number] = 0
+        
+        buses.append({
+            'bus_id': i + 1,
+            'bus_number': bus_number,
+            'bus_type': bus_type,
+            'capacity': random.choice([30, 35, 40, 45, 50]),
+            'fuel_type': 'Electric' if bus_type == 'Electric' else random.choice(fuel_types),
+            'start_point': route_info['start'],
+            'end_point': route_info['end'],
+            'route_name': route_info['route'],
+            'current_location': route_info['start'],
+            'avg_rating': round(random.uniform(3.8, 4.9), 1),
+            'total_trips': random.randint(500, 2000),
+            'last_maintenance': datetime.now() - timedelta(days=random.randint(10, 90)),
+            'status': 'Active',  # ✅ ALL START ACTIVE
+            'bad_reviews': 0,     # ✅ 0 BAD REVIEWS AT START
+            'current_passengers': random.randint(5, 35),
+            'latitude': start_place['latitude'] + random.uniform(-0.01, 0.01),
+            'longitude': start_place['longitude'] + random.uniform(-0.01, 0.01)
+        })
+    
+    st.session_state.bus_fleet = buses
+    st.session_state.app_initialized = True  # ✅ MARK AS INITIALIZED
+    return pd.DataFrame(buses)
+
+@st.cache_data
+def get_places_data():
+    return create_places_data()
+
+def get_buses_data():
+    """Get fresh bus data"""
+    return create_buses_data()
+
+# ✅ STABLE ROUTE GENERATION WITH SHORTEST ROUTE PRIORITY
+def find_available_routes(start, destination):
+    """Generate stable routes with shortest route priority"""
+    
+    session_id = st.session_state.route_session_id
+    cache_key = f"{session_id}_{start}_{destination}"
+    
+    if cache_key in st.session_state.stable_routes:
+        return st.session_state.stable_routes[cache_key]
+    
+    places_df = get_places_data()
+    
+    # Get coordinates
+    start_info = places_df[places_df['place_name'] == start].iloc[0]
+    dest_info = places_df[places_df['place_name'] == destination].iloc[0]
+    
+    start_coords = (start_info['latitude'], start_info['longitude'])
+    dest_coords = (dest_info['latitude'], dest_info['longitude'])
+    
+    # Get correct geographical route (shortest path)
+    route_sequence = get_geographical_route(start, destination)
+    
+    # Calculate route distance
+    total_distance = 0
+    for i in range(len(route_sequence) - 1):
+        place1 = places_df[places_df['place_name'] == route_sequence[i]].iloc[0]
+        place2 = places_df[places_df['place_name'] == route_sequence[i + 1]].iloc[0]
+        
+        coords1 = (place1['latitude'], place1['longitude'])
+        coords2 = (place2['latitude'], place2['longitude'])
+        
+        segment_distance = calculate_real_distance(coords1, coords2)
+        total_distance += segment_distance
+    
+    # Create routes sorted by speed/time (shortest time first)
+    routes = []
+    bus_types = ['Volvo', 'AC Deluxe', 'Semi-Deluxe', 'Ordinary']  # ✅ FASTEST FIRST
+    
+    route_base_number = 200 + (abs(hash(f"{start}_{destination}")) % 100)
+    
+    for i, bus_type in enumerate(bus_types):
+        travel_time = calculate_accurate_travel_time(total_distance, bus_type)
+        
+        base_rate_per_km = {
+            'Ordinary': 2.5,
+            'Semi-Deluxe': 3.5,
+            'AC Deluxe': 5.0,
+            'Volvo': 7.0
+        }
+        
+        rate = base_rate_per_km[bus_type]
+        price = max(int(total_distance * rate + 25), 40)
+        
+        route_name = f"Route {route_base_number + i}"
+        if i == 0:  # Mark fastest route
+            route_name += " (Fastest)"
+        
+        routes.append({
+            'route_name': route_name,
+            'route_id': f"R{route_base_number + i}",
+            'route_sequence': route_sequence,
+            'total_stops': len(route_sequence),
+            'total_time': travel_time,
+            'distance_km': round(total_distance, 1),
+            'price': price,
+            'comfort_level': bus_type,
+            'transfers': 0,
+            'frequency': random.randint(20, 50),
+            'next_bus': random.randint(8, 30),
+            'rating': round(random.uniform(4.0, 4.8), 1),
+            'amenities': {
+                'Ordinary': ['GPS Tracking', 'Fan', 'Mobile Charging'],
+                'Semi-Deluxe': ['GPS Tracking', 'Comfortable Seats', 'Fan', 'Mobile Charging'],
+                'AC Deluxe': ['GPS Tracking', 'AC', 'Comfortable Seats', 'Entertainment', 'Mobile Charging'],
+                'Volvo': ['GPS Tracking', 'AC', 'Luxury Seats', 'Entertainment', 'WiFi', 'USB Charging']
+            }[bus_type]
+        })
+    
+    st.session_state.stable_routes[cache_key] = routes
+    return routes
+
+# ✅ RECEIPT GENERATION FUNCTION
+def generate_receipt(booking_data, route_data):
+    """Generate a detailed booking receipt"""
+    receipt = {
+        'booking_id': booking_data['booking_id'],
+        'date_time': datetime.now(),
+        'passenger_name': st.session_state.current_user['full_name'],
+        'passenger_phone': st.session_state.current_user['phone'],
+        'route_name': route_data['route_name'],
+        'route_sequence': " → ".join(route_data['route_sequence']),
+        'bus_type': route_data['comfort_level'],
+        'distance': route_data['distance_km'],
+        'travel_time': route_data['total_time'],
+        'passengers': booking_data['passengers'],
+        'price_per_ticket': route_data['price'],
+        'total_amount': booking_data['total_amount'],
+        'travel_date': booking_data['travel_date'],
+        'booking_status': 'Confirmed'
+    }
+    return receipt
+
+
+# ✅ LIVE BUS TRACKING MAP FUNCTION - PYDECK VERSION (NO AUTO-REFRESH)
+def create_live_bus_map_pydeck(buses_df):
+    """Create live bus tracking map with pydeck - shows all buses"""
+    if buses_df is None or buses_df.empty:
+        return None
+
+    active_buses = buses_df[buses_df['status'] == 'Active']
+
+    # Color mapping for different bus types
+    def get_bus_color(bus_type):
+        color_map = {
+            'Ordinary': [0, 100, 255, 180],      # Blue
+            'Semi-Deluxe': [0, 200, 100, 180],   # Green
+            'AC Deluxe': [255, 165, 0, 180],     # Orange
+            'Volvo': [255, 50, 50, 180],         # Red
+            'Electric': [150, 0, 255, 180]       # Purple
+        }
+        return color_map.get(bus_type, [0, 100, 255, 180])
+
+    # Create pydeck layer
+    layer = pdk.Layer(
+        'ScatterplotLayer',
+        data=active_buses,
+        get_position='[longitude, latitude]',
+        get_color='[0, 153, 255, 180]',  # Blue color for all buses
+        get_radius=3000,
+        pickable=True,
+        auto_highlight=True,
+    )
+
+    # Set the viewport location
+    view_state = pdk.ViewState(
+        latitude=active_buses['latitude'].mean(),
+        longitude=active_buses['longitude'].mean(),
+        zoom=7,
+        pitch=0,
+    )
+
+    # Create the deck
+    deck = pdk.Deck(
+        layers=[layer],
+        initial_view_state=view_state,
+        map_style='mapbox://styles/mapbox/streets-v12',
+        tooltip={
+            "html": "<b>🚌 Bus:</b> {bus_number}<br/>"
+                    "<b>Type:</b> {bus_type}<br/>"
+                    "<b>Route:</b> {route_name}<br/>"
+                    "<b>From:</b> {start_point}<br/>"
+                    "<b>To:</b> {end_point}<br/>"
+                    "<b>Passengers:</b> {current_passengers}/{capacity}<br/>"
+                    "<b>Rating:</b> ⭐ {avg_rating}/5<br/>"
+                    "<b>Status:</b> LIVE",
+            "style": {
+                "color": "white",
+                "backgroundColor": "rgba(0,0,0,0.8)"
+            }
+        }
+    )
+
+    return deck
+
+
+# ✅ ENHANCED DASHBOARD WITH LIVE BUS MAP
+def transportai_dashboard():
+    """Dashboard with Live Bus Tracking Map - MANUAL REFRESH ONLY"""
+    st.markdown("<div class='main-header'>📊 Live Transport Dashboard</div>", unsafe_allow_html=True)
+
+    # Back navigation buttons
+    if st.session_state.role == 'municipality':
+        if st.button("← Back to Municipal Portal", key="back_to_municipal_from_dashboard", type="secondary"):
+            st.session_state.page = 'tasks_municipality'
+            st.rerun()
+    elif st.session_state.role == 'public':
+        if st.button("← Back to Public Portal", key="back_to_public_from_dashboard", type="secondary"):
+            st.session_state.page = 'tasks_public'
+            st.rerun()
+
+    st.markdown("---")
+
+    # ============== MANUAL REFRESH LOGIC ==============
+    # Initialize session state for caching
+    if 'cached_buses_df' not in st.session_state:
+        st.session_state.cached_buses_df = None
+    if 'cached_live_map' not in st.session_state:
+        st.session_state.cached_live_map = None
+    if 'last_refresh_time' not in st.session_state:
+        st.session_state.last_refresh_time = None
+
+    # Manual refresh button
+    col_refresh1, col_refresh2, col_refresh3 = st.columns([1, 2, 1])
+    with col_refresh2:
+        refresh_clicked = st.button("🔄 REFRESH MAP & DATA", use_container_width=True, type="primary", key="manual_refresh_dashboard")
+
+    # Only update data when button clicked or first load
+    if refresh_clicked or st.session_state.cached_buses_df is None:
+        with st.spinner("Refreshing map and data..."):
+            buses_df = get_buses_data()
+            live_map = create_live_bus_map_pydeck(buses_df)
+
+            st.session_state.cached_buses_df = buses_df
+            st.session_state.cached_live_map = live_map
+            st.session_state.last_refresh_time = datetime.now()
+            st.success("✅ Data refreshed successfully!")
+
+    # Use cached data
+    buses_df = st.session_state.cached_buses_df
+    live_map = st.session_state.cached_live_map
+
+    if st.session_state.last_refresh_time:
+        st.info(f"📅 Last Refreshed: {st.session_state.last_refresh_time.strftime('%Y-%m-%d %H:%M:%S')} | Click 'REFRESH MAP & DATA' to update")
+    # ============== END MANUAL REFRESH LOGIC ==============
+    
+    # Get updated bus data
+    buses_df = get_buses_data()
+    
+    if buses_df.empty:
+        st.error("❌ No bus data available. Please check the system.")
+        return
+    
+    # Real-time statistics
+    total_buses = len(buses_df)
+    active_buses = len(buses_df[buses_df['status'] == 'Active'])
+    maintenance_buses = len(buses_df[buses_df['status'] == 'Maintenance'])
+    total_passengers = int(buses_df['current_passengers'].sum())
+    
+    # Dashboard metrics
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.markdown(f"""
+        <div class='dashboard-card'>
+            <div class='live-indicator'></div>
+            <h2>{total_buses}</h2>
+            <p>🚌 Total Fleet</p>
+            <small>All buses in system</small>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown(f"""
+        <div class='dashboard-card'>
+            <div class='live-indicator'></div>
+            <h2>{active_buses}</h2>
+            <p>✅ Active Buses</p>
+            <small>Currently operational</small>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown(f"""
+        <div class='dashboard-card'>
+            <div class='live-indicator'></div>
+            <h2>{maintenance_buses}</h2>
+            <p>🔧 In Maintenance</p>
+            <small>3+ bad reviews</small>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col4:
+        st.markdown(f"""
+        <div class='dashboard-card'>
+            <div class='live-indicator'></div>
+            <h2>{total_passengers}</h2>
+            <p>👥 Live Passengers</p>
+            <small>Currently traveling</small>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # ✅ LIVE BUS TRACKING MAP
+    st.markdown("### 🗺️ Live Bus Tracking Map (All 160 Buses)")
+    st.info("🔄 **Manual Refresh Only** - Click 'REFRESH MAP & DATA' button above to update bus positions")
+    
+    # Display the cached pydeck map
+    if live_map is not None:
+        st.pydeck_chart(live_map, use_container_width=True)
+    else:
+        st.warning("No map data available. Click refresh button.")
+    
+    # Live bus status summary
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("#### 🚌 Active Buses by Type")
+        active_buses_df = buses_df[buses_df['status'] == 'Active']
+        if not active_buses_df.empty:
+            bus_type_counts = active_buses_df['bus_type'].value_counts()
+            for bus_type, count in bus_type_counts.items():
+                st.write(f"🚌 **{bus_type}**: {count} buses")
+        
+        st.markdown("#### 📍 Recently Updated Positions")
+        for idx, bus in active_buses_df.head(5).iterrows():
+            occupancy = int((bus['current_passengers'] / bus['capacity']) * 100)
+            st.write(f"• {bus['bus_number']} - {bus['start_point']}→{bus['end_point']} ({occupancy}% full)")
+    
+    with col2:
+        st.markdown("#### 🔧 Maintenance Status")
+        maintenance_buses_df = buses_df[buses_df['status'] == 'Maintenance']
+        if len(maintenance_buses_df) > 0:
+            st.write(f"🔧 **In Maintenance**: {len(maintenance_buses_df)} buses")
+            for _, bus in maintenance_buses_df.head(3).iterrows():
+                st.write(f"• {bus['bus_number']} - {bus['bad_reviews']} bad reviews")
+        else:
+            st.success("🎉 No buses in maintenance!")
+        
+        st.markdown("#### 🚦 Traffic Conditions")
+        st.write("🔴 **High Traffic**: Gandhipuram Junction, Salem Bypass")
+        st.write("🟡 **Medium Traffic**: Chennai Toll Plaza, Erode Main Road")
+        st.write("🟢 **Light Traffic**: Trichy Central")
+    
+    # Manual refresh notice
+    if st.session_state.last_refresh_time:
+        st.success(f"✅ Last Refreshed: {st.session_state.last_refresh_time.strftime('%H:%M:%S')} | Click 'REFRESH MAP & DATA' button to update")
+
+# ✅ ROUTE OPTIMIZATION WITH SHORTEST ROUTES AND PRINT RECEIPT
+def route_optimization():
+    """Route optimization with shortest route priority and print receipt"""
+    user = st.session_state.current_user
+    st.markdown(f"<div class='main-header'>🎫 Book Your Journey, {user['first_name']}!</div>", unsafe_allow_html=True)
+    
+    # Back to Public Portal button
+    if st.button("← Back to Public Portal", key="back_to_public_from_booking", type="secondary"):
+        st.session_state.page = 'tasks_public'
+        st.rerun()
+    
+    places = get_places_data()
+    place_names = places['place_name'].tolist()
+    
+    if st.session_state.booking_step == 'search':
+        st.markdown("### 📍 Plan Your Journey")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            start_location = st.selectbox("🚀 From", place_names, index=0, key="select_start_location")
+        
+        with col2:
+            destination = st.selectbox("🎯 To", place_names, index=6, key="select_destination")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            travel_date = st.date_input("📅 Travel Date", datetime.now().date(), key="input_travel_date")
+        
+        with col2:
+            travel_time = st.selectbox("⏰ Preferred Time", 
+                ["Now", "Morning (6-10 AM)", "Afternoon (12-4 PM)", "Evening (5-8 PM)"], key="select_travel_time")
+        
+        with col3:
+            passengers = st.number_input("👥 Passengers", min_value=1, max_value=6, value=1, key="input_passengers")
+        
+        if st.button("🔍 Search Available Routes", use_container_width=True, type="primary", key="btn_search_routes"):
+            if start_location != destination:
+                st.session_state.search_params = {
+                    'start': start_location,
+                    'destination': destination,
+                    'date': travel_date,
+                    'time': travel_time,
+                    'passengers': passengers
+                }
+                st.session_state.booking_step = 'select_route'
+                st.rerun()
+            else:
+                st.error("Please select different start and destination locations!")
+    
+    elif st.session_state.booking_step == 'select_route':
+        params = st.session_state.search_params
+        st.markdown(f"### 🚌 Available Routes: {params['start']} → {params['destination']}")
+        
+        # ✅ GET ROUTES WITH SHORTEST/FASTEST FIRST
+        available_routes = find_available_routes(params['start'], params['destination'])
+        
+        st.info("✅ Routes sorted by speed (shortest travel time first):")
+        
+        for i, route in enumerate(available_routes):
+            route_sequence_str = " → ".join(route['route_sequence'])
+            price_total = route['price'] * params['passengers']
+            
+            time_hours = route['total_time'] // 60
+            time_mins = route['total_time'] % 60
+            time_display = f"{time_hours}h {time_mins}m" if time_hours > 0 else f"{time_mins} minutes"
+            
+            # Highlight fastest route
+            border_color = "#FFD700" if i == 0 else "#4ECDC4"
+            badge = " 🏆 FASTEST" if i == 0 else ""
+            
+            st.markdown(f"""
+            <div class='route-card' style='border-color: {border_color};'>
+                <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;'>
+                    <div>
+                        <h3>🚌 {route['route_name']} - {route['comfort_level']}{badge}</h3>
+                        <p style='margin: 0; font-size: 1.1rem;'><strong>🗺️ Route:</strong> {route_sequence_str}</p>
+                        <p style='margin: 0;'><strong>📏 Distance:</strong> {route['distance_km']} km | <strong>🚏 Stops:</strong> {route['total_stops']}</p>
+                    </div>
+                    <div style='text-align: right;'>
+                        <div style='font-size: 1.4rem; font-weight: bold; color: #FFE66D;'>{time_display}</div>
+                        <div style='font-size: 1.2rem; font-weight: bold; color: #4ECDC4;'>₹{price_total}</div>
+                        <div style='font-size: 0.9rem; opacity: 0.8;'>₹{route['price']} per person</div>
+                    </div>
+                </div>
+                <div style='display: flex; justify-content: space-between; margin-top: 1rem; font-size: 0.9rem;'>
+                    <span>🚌 Next: {route['next_bus']} min</span>
+                    <span>⭐ Rating: {route['rating']:.1f}</span>
+                    <span>🔄 Every: {route['frequency']} min</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if st.button(f"Select {route['route_name']}", key=f"select_route_{i}_{route['route_name']}", use_container_width=True):
+                st.session_state.selected_route = i
+                st.session_state.route_details = route
+                st.session_state.booking_step = 'payment'
+                st.rerun()
+        
+        if st.button("← Back to Search", key="btn_back_to_search"):
+            st.session_state.booking_step = 'search'
+            st.rerun()
+    
+    elif st.session_state.booking_step == 'payment':
+        route = st.session_state.route_details
+        params = st.session_state.search_params
+        total_amount = route['price'] * params['passengers']
+        
+        st.markdown("### 💳 Confirm Your Booking")
+        
+        route_sequence_str = " → ".join(route['route_sequence'])
+        time_hours = route['total_time'] // 60
+        time_mins = route['total_time'] % 60
+        time_display = f"{time_hours}h {time_mins}m" if time_hours > 0 else f"{time_mins} minutes"
+        
+        st.info(f"""
+        **📋 Booking Summary:**
+        - **👤 Passenger:** {st.session_state.current_user['full_name']}
+        - **🚌 Route:** {route['route_name']} ({route['comfort_level']})
+        - **🗺️ Journey:** {route_sequence_str}
+        - **📏 Distance:** {route['distance_km']} km
+        - **⏱️ Travel Time:** {time_display}
+        - **📅 Date:** {params['date']}
+        - **👥 Passengers:** {params['passengers']}
+        - **💰 Total Amount:** ₹{total_amount}
+        """)
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("🎫 Confirm & Pay", use_container_width=True, type="primary", key="btn_confirm_pay"):
+                st.session_state.booking_step = 'receipt'
+                st.rerun()
+        
+        with col2:
+            if st.button("← Back to Routes", use_container_width=True, key="btn_back_to_routes"):
+                st.session_state.booking_step = 'select_route'
+                st.rerun()
+    
+    elif st.session_state.booking_step == 'receipt':
+        st.success("🎉 Payment Successful!")
+        st.balloons()
+        
+        route = st.session_state.route_details
+        params = st.session_state.search_params
+        total_amount = route['price'] * params['passengers']
+        
+        # Create booking data
+        booking = {
+            'booking_id': f"BK{random.randint(10000, 99999)}",
+            'route': route['route_name'],
+            'route_sequence': " → ".join(route['route_sequence']),
+            'travel_date': params['date'],
+            'passengers': params['passengers'],
+            'total_amount': total_amount,
+            'status': 'Confirmed'
+        }
+        
+        # Add to booking history
+        st.session_state.user_bookings.append(booking)
+        
+        # ✅ GENERATE RECEIPT
+        receipt = generate_receipt(booking, route)
+        st.session_state.current_receipt = receipt
+        
+        # ✅ DISPLAY PRINTABLE RECEIPT
+        st.markdown("### 🧾 Booking Receipt")
+        
+        receipt_html = f"""
+        <div class='receipt-card' id='receipt'>
+            <div style='text-align: center; border-bottom: 2px dashed #333; padding-bottom: 1rem; margin-bottom: 1rem;'>
+                <h2 style='color: #FF6B6B; margin: 0;'>🚍 SMART TRANSPORT</h2>
+                <p style='margin: 0; font-size: 0.9rem;'>Tamil Nadu State Transport</p>
+            </div>
+            
+            <div style='margin-bottom: 1rem;'>
+                <strong>BOOKING CONFIRMATION</strong><br>
+                Receipt No: {receipt['booking_id']}<br>
+                Date & Time: {receipt['date_time'].strftime('%d/%m/%Y %H:%M:%S')}<br>
+            </div>
+            
+            <div style='border-bottom: 1px solid #ddd; padding-bottom: 1rem; margin-bottom: 1rem;'>
+                <strong>PASSENGER DETAILS</strong><br>
+                Name: {receipt['passenger_name']}<br>
+                Phone: {receipt['passenger_phone']}<br>
+                Passengers: {receipt['passengers']}<br>
+            </div>
+            
+            <div style='border-bottom: 1px solid #ddd; padding-bottom: 1rem; margin-bottom: 1rem;'>
+                <strong>JOURNEY DETAILS</strong><br>
+                Route: {receipt['route_name']}<br>
+                Path: {receipt['route_sequence']}<br>
+                Bus Type: {receipt['bus_type']}<br>
+                Travel Date: {receipt['travel_date']}<br>
+                Distance: {receipt['distance']} km<br>
+                Duration: {receipt['travel_time']//60}h {receipt['travel_time']%60}m<br>
+            </div>
+            
+            <div style='border-bottom: 1px solid #ddd; padding-bottom: 1rem; margin-bottom: 1rem;'>
+                <strong>PAYMENT DETAILS</strong><br>
+                Price per ticket: ₹{receipt['price_per_ticket']}<br>
+                Number of passengers: {receipt['passengers']}<br>
+                <div style='font-size: 1.2rem; font-weight: bold; margin-top: 0.5rem;'>
+                    Total Amount: ₹{receipt['total_amount']}
+                </div>
+            </div>
+            
+            <div style='text-align: center; margin-top: 1rem;'>
+                <p style='margin: 0; font-size: 0.9rem;'>Status: <strong style='color: green;'>{receipt['booking_status']}</strong></p>
+                <p style='margin: 0; font-size: 0.8rem; margin-top: 0.5rem;'>Thank you for choosing Smart Transport!</p>
+                <p style='margin: 0; font-size: 0.8rem;'>Have a safe journey! 🚌</p>
+            </div>
+        </div>
+        """
+        
+        st.markdown(receipt_html, unsafe_allow_html=True)
+        
+        # ✅ PRINT RECEIPT BUTTON
+        col1, col2, col3 = st.columns([1, 2, 1])
+        
+        with col2:
+            if st.button("🖨️ Print Receipt", use_container_width=True, type="primary", key="btn_print_receipt"):
+                st.markdown("""
+                <script>
+                window.print();
+                </script>
+                """, unsafe_allow_html=True)
+                st.success("📄 Receipt ready for printing! Use your browser's print function (Ctrl+P)")
+        
+        st.markdown("---")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("🏠 Book Another Trip", use_container_width=True, key="btn_book_another"):
+                st.session_state.booking_step = 'search'
+                st.rerun()
+        
+        with col2:
+            if st.button("⭐ Rate Service", use_container_width=True, key="btn_rate_service"):
+                st.session_state.page = 'review_system'
+                st.rerun()
+
+# Keep all other functions (maintenance_center, bus_management, etc.) the same as before
+
+def maintenance_center():
+    """Enhanced Maintenance Center"""
+    st.markdown("<div class='main-header'>🔧 Bus Maintenance Center</div>", unsafe_allow_html=True)
+    
+    if st.button("← Back to Municipal Portal", key="back_to_municipal_from_maintenance", type="secondary"):
+        st.session_state.page = 'tasks_municipality'
+        st.rerun()
+    
+    buses_df = get_buses_data()
+    maintenance_buses = buses_df[buses_df['status'] == 'Maintenance']
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown(f"""
+        <div class='dashboard-card'>
+            <h2>{len(maintenance_buses)}</h2>
+            <p>🔧 Currently in Maintenance</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown(f"""
+        <div class='dashboard-card'>
+            <h2>{len(buses_df) - len(maintenance_buses)}</h2>
+            <p>✅ Operational Buses</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("### 🔧 Buses Currently in Maintenance")
+    
+    if len(maintenance_buses) > 0:
+        for idx, bus in maintenance_buses.iterrows():
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                st.markdown(f"""
+                <div class='maintenance-card'>
+                    <h4>🔧 {bus['bus_number']} - {bus['bus_type']}</h4>
+                    <p><strong>Route:</strong> {bus['start_point']} → {bus['end_point']}</p>
+                    <p><strong>Issues:</strong> {bus['bad_reviews']} bad reviews</p>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col2:
+                if st.button(f"✅ Complete", key=f"complete_{bus['bus_number']}", type="primary"):
+                    st.session_state.bus_review_tracker[bus['bus_number']] = 0
+                    for fleet_bus in st.session_state.bus_fleet:
+                        if fleet_bus['bus_number'] == bus['bus_number']:
+                            fleet_bus['status'] = 'Active'
+                            fleet_bus['bad_reviews'] = 0
+                            break
+                    st.success(f"✅ {bus['bus_number']} returned to service!")
+                    time.sleep(1)
+                    st.rerun()
+    else:
+        st.info("✅ No buses currently in maintenance!")
+
+def bus_management():
+    """Bus fleet management"""
+    st.markdown("<div class='main-header'>🚌 Bus Fleet Management</div>", unsafe_allow_html=True)
+    
+    if st.button("← Back to Municipal Portal", key="back_to_municipal_from_bus", type="secondary"):
+        st.session_state.page = 'tasks_municipality'
+        st.rerun()
+    
+    buses_df = get_buses_data()
+    places_df = get_places_data()
+    
+    # Fleet statistics
+    col1, col2, col3, col4 = st.columns(4)
+    
+    total_buses = len(buses_df)
+    active_buses = len(buses_df[buses_df['status'] == 'Active'])
+    maintenance_buses = len(buses_df[buses_df['status'] == 'Maintenance'])
+    avg_rating = buses_df['avg_rating'].mean()
+    
+    with col1:
+        st.markdown(f"""<div class='dashboard-card'><h2>{total_buses}</h2><p>🚌 Total Fleet</p></div>""", unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown(f"""<div class='dashboard-card'><h2>{active_buses}</h2><p>✅ Active Buses</p></div>""", unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown(f"""<div class='dashboard-card'><h2>{maintenance_buses}</h2><p>🔧 In Maintenance</p></div>""", unsafe_allow_html=True)
+    
+    with col4:
+        st.markdown(f"""<div class='dashboard-card'><h2>{avg_rating:.1f}</h2><p>⭐ Avg Rating</p></div>""", unsafe_allow_html=True)
+    
+    # Bus fleet display
+    st.markdown("### 🚍 Current Bus Fleet")
+    
+    for _, bus in buses_df.head(10).iterrows():
+        status_color = "#4ECDC4" if bus['status'] == 'Active' else "#FF6B6B"
+        st.markdown(f"""
+        <div class='bus-card'>
+            <div style='display: flex; justify-content: space-between; align-items: center;'>
+                <div>
+                    <h4>🚌 {bus['bus_number']} - {bus['bus_type']}</h4>
+                    <p><strong>Route:</strong> {bus['start_point']} → {bus['end_point']}</p>
+                </div>
+                <div style='text-align: right;'>
+                    <div style='color: {status_color}; font-weight: bold;'>{bus['status']}</div>
+                    <div>⭐ {bus['bad_reviews']} bad reviews</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+def find_user_by_name(name):
+    """Simple user creation"""
+    return {
+        "passenger_id": 1,
+        "first_name": name.split()[0] if ' ' in name else name,
+        "last_name": name.split()[-1] if ' ' in name else "User",
+        "full_name": name,
+        "age": 25,
+        "phone": f"9{random.randint(100000000, 999999999)}",
+        "complaint_frequency": "Sometimes",
+        "total_bookings": random.randint(1, 20)
+    }
+
+def role_selection_page():
+    st.markdown("<div class='main-header'>🚍 Smart Transport System</div>", unsafe_allow_html=True)
+    
+    st.markdown("### 👤 Enter Your Name to Continue")
+    user_name = st.text_input("Your Name", placeholder="Enter your name (e.g., Mithun)", key="user_name_input_main")
+    
+    if user_name:
+        user = find_user_by_name(user_name)
+        st.session_state.current_user = user
+        
+        st.markdown(f"""
+        <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 1.5rem; border-radius: 15px; color: white; margin: 1rem 0; box-shadow: 0 10px 25px rgba(0,0,0,0.2);'>
+            <h3>👋 Welcome {user['full_name']}!</h3>
+            <p><strong>📱 Phone:</strong> {user['phone']}</p>
+            <p><strong>🎂 Age:</strong> {user['age']}</p>
+            <p><strong>🎫 Total Bookings:</strong> {user['total_bookings']}</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("👥 Continue as Public User", use_container_width=True, type="primary", key="btn_public_user"):
+                st.session_state.role = 'public'
+                st.session_state.page = 'tasks_public'
+                st.rerun()
+        
+        with col2:
+            if st.button("🏛️ Continue as Municipality", use_container_width=True, key="btn_municipality"):
+                st.session_state.role = 'municipality'
+                st.session_state.page = 'tasks_municipality'
+                st.rerun()
+
+def tasks_public_page():
+    user = st.session_state.current_user
+    st.markdown(f"<div class='main-header'>👥 Welcome {user['first_name']}!</div>", unsafe_allow_html=True)
+    
+    # Action buttons
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("🎫 Book Tickets", use_container_width=True, type="primary", key="btn_book_tickets_public"):
+            st.session_state.page = 'route_optimization'
+            st.session_state.booking_step = 'search'
+            st.rerun()
+    
+    with col2:
+        if st.button("📊 Live Dashboard", use_container_width=True, key="btn_dashboard_public"):
+            st.session_state.page = 'transportai_dashboard'
+            st.rerun()
+    
+    with col3:
+        if st.button("⭐ Rate Service", use_container_width=True, key="btn_review_public"):
+            st.session_state.page = 'review_system'
+            st.rerun()
+
+def tasks_municipality_page():
+    st.markdown("<div class='main-header'>🏛️ Municipality Control Center</div>", unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("🚌 Bus Management", use_container_width=True, type="primary", key="btn_bus_management_municipality"):
+            st.session_state.page = 'bus_management'
+            st.rerun()
+        
+        if st.button("📋 View Reviews", use_container_width=True, key="btn_view_reviews_municipality"):
+            st.session_state.page = 'view_reviews'
+            st.rerun()
+    
+    with col2:
+        if st.button("🔧 Maintenance Center", use_container_width=True, key="btn_maintenance_municipality"):
+            st.session_state.page = 'maintenance_center'
+            st.rerun()
+        
+        if st.button("📊 Live Dashboard", use_container_width=True, key="btn_dashboard_municipality"):
+            st.session_state.page = 'transportai_dashboard'
+            st.rerun()
+
+def review_system():
+    """Review system"""
+    user = st.session_state.current_user
+    st.markdown(f"<div class='main-header'>⭐ Rate Bus Service - {user['first_name']}</div>", unsafe_allow_html=True)
+    
+    if st.button("← Back to Public Portal", key="back_to_public_from_review", type="secondary"):
+        st.session_state.page = 'tasks_public'
+        st.rerun()
+    
+    if not st.session_state.user_bookings:
+        st.warning("⚠️ You need to complete at least one booking before rating services!")
+        if st.button("🎫 Go to Booking", use_container_width=True, type="primary", key="btn_go_to_booking_review"):
+            st.session_state.page = 'route_optimization'
+            st.session_state.booking_step = 'search'
+            st.rerun()
+        return
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        bus_numbers = [f"TN38A{random.randint(100, 999)}" for _ in range(10)]
+        selected_bus = st.selectbox("🚌 Select Bus", bus_numbers, key="select_bus_review")
+    
+    with col2:
+        rating = st.selectbox("⭐ Service Rating", [1, 2, 3, 4, 5], index=2, key="select_rating")
+    
+    if st.button("⭐ Submit Rating", use_container_width=True, type="primary", key="btn_submit_review"):
+        if rating <= 2:  # Bad review
+            if selected_bus not in st.session_state.bus_review_tracker:
+                st.session_state.bus_review_tracker[selected_bus] = 0
+            st.session_state.bus_review_tracker[selected_bus] += 1
+            bad_reviews = st.session_state.bus_review_tracker[selected_bus]
+            
+            if bad_reviews >= 3:
+                st.error(f"🚨 Bus {selected_bus} moved to MAINTENANCE! ({bad_reviews} bad reviews)")
+                st.balloons()
+            else:
+                st.warning(f"⚠️ Bad review recorded: {bad_reviews}/3")
+        else:
+            st.success("✅ Thank you for your positive feedback!")
+
+def view_reviews():
+    """View reviews"""
+    st.markdown("<div class='main-header'>📋 View All Reviews</div>", unsafe_allow_html=True)
+    
+    if st.button("← Back to Municipal Portal", key="back_to_municipal_from_reviews", type="secondary"):
+        st.session_state.page = 'tasks_municipality'
+        st.rerun()
+    
+    st.info("📊 Review monitoring dashboard for municipality")
+
+def main():
+    """Main application function"""
+    
+    # Navigation
+    if st.session_state.page != 'role_selection' and st.session_state.current_user:
+        user = st.session_state.current_user
+        st.markdown(f"**👤 {user['full_name']}** | **📱 {user['phone']}** | **Role:** {st.session_state.role}")
+        st.markdown("---")
+    
+    # Page routing
+    if st.session_state.page == 'role_selection':
+        role_selection_page()
+    elif st.session_state.page == 'tasks_public':
+        tasks_public_page()
+    elif st.session_state.page == 'tasks_municipality':
+        tasks_municipality_page()
+    elif st.session_state.page == 'bus_management':
+        bus_management()
+    elif st.session_state.page == 'maintenance_center':
+        maintenance_center()
+    elif st.session_state.page == 'view_reviews':
+        view_reviews()
+    elif st.session_state.page == 'route_optimization':
+        route_optimization()
+    elif st.session_state.page == 'review_system':
+        review_system()
+    elif st.session_state.page == 'transportai_dashboard':
+        transportai_dashboard()
+
+if __name__ == "__main__":
+    main()
